@@ -1,13 +1,13 @@
 # ----------------------------
 from os import getenv
 from pathlib import Path
+from platform import system
 
 
 WORK_TIME = 25 * 60
 BREAK_TIME = 5 * 60
 VERSE_UPDATE_INTERVAL = 14400  # 4 часа
 PRAYER_REMINDER_INTERVAL = 90 * 60  # 1.5 часа
-# ----------------------------
 
 OTCHE_NASH = (
     "Отче наш, Иже еси на небесе́х! "
@@ -123,10 +123,13 @@ BIBLE_VERSES = [
     "прп. Исаак Сирин  — Движение языка и сердца в молитве суть ключи; а что после сего, то уже есть вход в сокровенные клети",
 ]
 
-APPDATA = getenv("APPDATA")
-assert APPDATA, "Failed to find AppData"
+if system() == "Windows":
+    appdata = getenv("APPDATA")
+    assert appdata, "Failed to find AppData"
+    APPDATA_DIR = Path(appdata) / "WorkTimerStrannik"
+else:
+    home_dir = Path("~").expanduser()
+    APPDATA_DIR = home_dir / ".WorkTimerStrannik"
 
-APPDATA_DIR = Path(APPDATA) / "WorkTimerStrannik"
 LAUNCH_FILE = APPDATA_DIR / "last_launch.txt"
-
 APPDATA_DIR.mkdir(parents=True, exist_ok=True)
