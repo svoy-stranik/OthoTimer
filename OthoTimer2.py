@@ -7,7 +7,7 @@ from datetime import datetime
 from plyer import notification
 import os
 import sys
-
+import platform
 # ----------------------------
 WORK_TIME = 25 * 60
 BREAK_TIME = 5 * 60
@@ -130,8 +130,13 @@ bible_verses = [
     "прп. Исаак Сирин  — Движение языка и сердца в молитве суть ключи; а что после сего, то уже есть вход в сокровенные клети",
 ]
 
-# ----------------------------
-APPDATA_DIR = os.path.join(os.getenv('APPDATA'), 'WorkTimerStrannik')
+# ----------------------------э
+if platform.system() == "Windows":
+    APPDATA_DIR = os.path.join(os.getenv('APPDATA'), 'WorkTimerStrannik')
+else:
+    # Для Linux и других ОС
+    home_dir = os.path.expanduser("~")
+    APPDATA_DIR = os.path.join(home_dir, '.WorkTimerStrannik')
 os.makedirs(APPDATA_DIR, exist_ok=True)
 LAUNCH_FILE = os.path.join(APPDATA_DIR, 'last_launch.txt')
 
