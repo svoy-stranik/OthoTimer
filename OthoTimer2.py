@@ -130,7 +130,7 @@ bible_verses = [
     "прп. Исаак Сирин  — Движение языка и сердца в молитве суть ключи; а что после сего, то уже есть вход в сокровенные клети",
 ]
 
-# ----------------------------э
+# ----------------------------
 if platform.system() == "Windows":
     APPDATA_DIR = os.path.join(os.getenv('APPDATA'), 'WorkTimerStrannik')
 else:
@@ -314,3 +314,4 @@ class WorkTimerApp:
 root = tk.Tk()
 app = WorkTimerApp(root)
 root.mainloop()
+
