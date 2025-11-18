@@ -1,0 +1,48 @@
+[project]
+name = "othotimer"
+version = "1.0.0"
+description = ""
+readme = "README.md"
+authors = []
+requires-python = ">=3.14"
+dependencies = [
+    "invoke>=2.2.1",
+    "plyer>=2.1.0",
+]
+
+[tool.ruff]
+src = ["src"]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle
+    "F",  # Pyflakes
+    "UP",  # pyupgrade
+    "B",  # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",  # isort
+    "N",  # pep8-naming
+    "FIX",
+    "FBT",
+    "ARG",
+    "PTH",
+    "ERA",
+    "RUF",
+]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"src/constants.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.16.0",
+    "ruff>=0.14.5",
+]
