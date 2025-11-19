@@ -10,6 +10,7 @@ from plyer import notification
 from constants import (
     BIBLE_VERSES,
     BREAK_TIME,
+    ICON_PATH,
     LAUNCH_FILE,
     OTCHE_NASH,
     PRAYER_REMINDER_INTERVAL,
@@ -25,7 +26,7 @@ class WorkTimerApp:
 
         # --- Устанавливаем иконку окна ---
         try:
-            root.iconbitmap("icon.ico")  # .ico для Windows
+            root.iconbitmap(ICON_PATH)  # .ico для Windows
         except Exception as e:
             print("Не удалось установить иконку:", e)
 
