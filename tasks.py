@@ -30,12 +30,12 @@ def lintfix(_: Context):
 def build(_: Context):
     rmtree("dist", ignore_errors=True)
 
-    # TODO: Add -i assets/icon.ico
-
     system(
         """
             uv run pyinstaller \
                 -Fwn OthoTimer \
+                --add-binary assets/icon.ico;assets \
+                -i assets/icon.ico \
                 -p src \
                 src/main.py
         """
