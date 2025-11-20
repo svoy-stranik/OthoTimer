@@ -1,13 +1,20 @@
-import tkinter as tk
+import random
+import sys
 from datetime import datetime
-from platform import system
-from random import choice
-from threading import Event, Thread
-from time import sleep
-from tkinter import messagebox
 
-from plyer.platforms.linux.notification import instance as create_linux_notifier
-from plyer.platforms.win.notification import instance as create_windows_notifier
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction, QFont, QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
+)
 
 from constants import (
     BIBLE_VERSES,
@@ -21,145 +28,256 @@ from constants import (
 )
 
 
-class WorkTimerApp:
-    def __init__(self, root, notifier):
-        self.root = root
-        self.notifier = notifier
-        self.root.title("Рабочий таймер от Странника v.1.0.0")
+class TimerThread(QThread):
+    timer_signal = pyqtSignal(int, str, bool)  # remaining, label, is_break
+    timer_finished = pyqtSignal(str, bool)  # label, is_break
 
-        # --- Устанавливаем иконку окна ---
-        try:
-            root.iconbitmap(ICON_PATH)  # .ico для Windows
-        except Exception as e:
-            print("Не удалось установить иконку:", e)
+    def __init__(self, duration, label, is_break=False):
+        super().__init__()
+        self.duration = duration
+        self.label = label
+        self.is_break = is_break
+        self._is_running = True
 
+    def run(self):
+        remaining = self.duration
+        while remaining > 0 and self._is_running:
+            self.timer_signal.emit(remaining, self.label, self.is_break)
+            self.sleep(1)
+            remaining -= 1
+
+        if remaining <= 0 and self._is_running:
+            self.timer_finished.emit(self.label, self.is_break)
+
+    def stop(self):
+        self._is_running = False
+        self.wait()
+
+
+class WorkTimerApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.notifier = None
         self.is_running = False
         self.is_break = False
-        self.stop_event = Event()
         self.verse_updating = False
         self.verse_started = False
         self.total_work_seconds = 0
         self.break_count = 0
+        self.current_timer = None
 
-        # --- UI ---
-        self.start_button = tk.Button(root, text="Начать рабочий день", command=self.start_day)
-        self.start_button.pack(pady=5)
-        self.pause_button = tk.Button(root, text="Обед (пауза)", command=self.pause_day, state=tk.DISABLED)
-        self.pause_button.pack(pady=5)
-        self.end_button = tk.Button(root, text="Закончить день", command=self.end_day)
-        self.end_button.pack(pady=5)
-        self.timer_label = tk.Label(root, text="", font=("Arial", 14))
-        self.timer_label.pack(pady=8)
+        self.init_ui()
+        self.init_tray()
 
-        # --- Заголовок и стих ---
-        self.title_label = None
-        self.verse_label = tk.Label(root, wraplength=350, justify="center", font=("Arial", 10))
-        self.verse_label.pack(pady=(10, 10))
+        # Таймер для напоминаний о молитве
+        self.prayer_timer = QTimer()
+        self.prayer_timer.timeout.connect(self.prayer_reminder)
+        self.prayer_timer.start(PRAYER_REMINDER_INTERVAL * 1000)
 
-        # Проверка первого запуска
+        # Таймер для обновления стихов
+        self.verse_timer = QTimer()
+        self.verse_timer.timeout.connect(self.update_verse)
+
+        self.check_first_launch()
+
+    def init_ui(self):
+        self.setWindowTitle("Рабочий таймер от Странника v.1.0.0")
+        self.setFixedSize(400, 500)
+
+        # Устанавливаем иконку
+        self.setWindowIcon(QIcon(str(ICON_PATH)))
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+
+        # Метка таймера
+        self.timer_label = QLabel("")
+        self.timer_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.timer_label.setStyleSheet("margin: 20px; color: darkgreen;")
+
+        # Кнопки в столбик
+        self.start_button = QPushButton("Начать рабочий день")
+        self.start_button.clicked.connect(self.start_day)
+        self.start_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; }")
+
+        self.pause_button = QPushButton("Обед (пауза)")
+        self.pause_button.clicked.connect(self.pause_day)
+        self.pause_button.setEnabled(False)
+        self.pause_button.setStyleSheet("QPushButton { background-color: #FF9800; color: white; }")
+
+        self.end_button = QPushButton("Закончить день")
+        self.end_button.clicked.connect(self.end_day)
+        self.end_button.setStyleSheet("QPushButton { background-color: #f44336; color: white; }")
+
+        # Добавляем кнопки в столбик
+        layout.addWidget(self.timer_label)
+        layout.addWidget(self.start_button)
+        layout.addWidget(self.pause_button)
+        layout.addWidget(self.end_button)
+        layout.addStretch(1)
+
+        # Заголовок молитвы (будет удалён при первом запуске)
+        self.title_label = QLabel("Молитва Господа Нашего Иисуса Христа:")
+        self.title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.title_label.setStyleSheet("color: darkblue;")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Метка для стихов
+        self.verse_label = QLabel()
+        self.verse_label.setFont(QFont("Arial", 10))
+        self.verse_label.setWordWrap(True)
+        self.verse_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.verse_label.setStyleSheet("margin: 10px;")
+
+        # Добавляем текст писания под кнопками
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.verse_label)
+
+    def init_tray(self):
+        """Инициализация системного трея"""
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(QIcon(str(ICON_PATH)))
+
+            tray_menu = QMenu()
+
+            show_action = QAction("Показать", self)
+            show_action.triggered.connect(self.show)
+            tray_menu.addAction(show_action)
+
+            quit_action = QAction("Выход", self)
+            quit_action.triggered.connect(self.quit_application)
+            tray_menu.addAction(quit_action)
+
+            self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.activated.connect(self.tray_icon_activated)
+            self.tray_icon.show()
+
+            self.notifier = self.tray_icon
+
+    def tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show()
+            self.activateWindow()
+
+    def check_first_launch(self):
+        """Проверка первого запуска за день"""
         self.today = datetime.now().strftime("%Y-%m-%d")
         self.last_launch = ""
+
         if LAUNCH_FILE.exists():
-            self.last_launch = LAUNCH_FILE.read_text()
+            self.last_launch = LAUNCH_FILE.read_text(encoding="utf-8")
 
         if self.last_launch != self.today:
-            # первый запуск дня — создаём заголовок сверху
-            self.title_label = tk.Label(
-                root, text="Молитва Господа Нашего Иисуса Христа:", font=("Arial", 12, "bold"), fg="darkblue"
-            )
-            self.title_label.pack(pady=(10, 0), before=self.verse_label)
-            self.verse_label.config(text=OTCHE_NASH)
-            LAUNCH_FILE.write_text(self.today)
+            # Первый запуск дня - показываем молитву
+            self.verse_label.setText(OTCHE_NASH)
+            LAUNCH_FILE.write_text(self.today, encoding="utf-8")
         else:
-            # повторный запуск — сразу случайный стих
+            # Повторный запуск - случайный стих
+            self.title_label.hide()
             self.update_verse(initial=True)
             self.verse_started = True
             self.verse_updating = True
-            self.schedule_verse_update()
-
-        # Перехват закрытия
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
-        # Пуш-напоминание о молитве каждые 1.5 часа
-        self.root.after(PRAYER_REMINDER_INTERVAL * 1000, self.prayer_reminder_loop)
+            self.verse_timer.start(VERSE_UPDATE_INTERVAL * 1000)
 
     def push(self, msg):
-        Thread(
-            target=lambda: self.notifier.notify(title="Православный таймер", message=msg, timeout=5),
-            daemon=True,
-        ).start()
+        """Показать уведомление"""
+        if self.notifier:
+            self.notifier.showMessage("Православный таймер", msg, QSystemTrayIcon.MessageIcon.Information, 5000)
 
     def start_day(self):
-        if not self.is_running:
-            self.is_running = True
-            self.stop_event.clear()
-            self.start_button.config(state=tk.DISABLED)
-            self.pause_button.config(state=tk.NORMAL)
-            self.end_button.config(state=tk.NORMAL)
-            if self.title_label:
-                self.title_label.destroy()
-                self.title_label = None
-            if self.verse_label.cget("text") == OTCHE_NASH:
-                self.verse_label.config(text="")
+        if self.is_running:
+            return
 
-            if not self.verse_started:
-                self.update_verse(initial=True)
-                self.verse_started = True
-                self.verse_updating = True
-                self.schedule_verse_update()
+        self.is_running = True
+        self.start_button.setEnabled(False)
+        self.pause_button.setEnabled(True)
+        self.end_button.setEnabled(True)
 
-            Thread(target=self.work_cycle, daemon=True).start()
+        # Убираем заголовок молитвы если он есть
+        if self.title_label.isVisible():
+            self.title_label.hide()
+            self.verse_label.setText("")
 
-    def schedule_verse_update(self):
-        if self.verse_updating:
-            self.root.after(VERSE_UPDATE_INTERVAL * 1000, self.update_verse)
+        # Запускаем обновление стихов если ещё не запущено
+        if not self.verse_started:
+            self.update_verse(initial=True)
+            self.verse_started = True
+            self.verse_updating = True
+            self.verse_timer.start(VERSE_UPDATE_INTERVAL * 1000)
 
-    def update_verse(self, *, initial=False):
-        verse = choice(BIBLE_VERSES)
-        self.verse_label.config(text=verse)
-        if not initial:
-            self.schedule_verse_update()
+        self.start_work_cycle()
 
-    def prayer_reminder_loop(self):
-        self.push("Молиться не забывай, солнышко 🌞")
-        self.root.after(PRAYER_REMINDER_INTERVAL * 1000, self.prayer_reminder_loop)
+    def start_work_cycle(self):
+        """Запуск цикла работы"""
+        self.start_timer(WORK_TIME, "Работа")
 
-    def work_cycle(self):
-        while not self.stop_event.is_set():
-            self.run_timer(WORK_TIME, "Работа")
-            if self.stop_event.is_set():
-                break
-            self.break_count += 1
-            self.run_timer(BREAK_TIME, "Перерыв", is_break=True)
+    def start_timer(self, duration, label, is_break=False):
+        """Запуск таймера"""
+        if self.current_timer:
+            self.current_timer.stop()
 
-    def run_timer(self, duration, label, *, is_break=False):
-        self.is_break = is_break
         self.push(f"{label} началась!")
-        remaining = duration
-        while remaining > 0 and not self.stop_event.is_set():
-            mins = remaining // 60
-            secs = remaining % 60
-            self.timer_label.config(text=f"{label}: {mins:02d}:{secs:02d}")
-            self.root.update()
-            sleep(1)
-            if not is_break:
-                self.total_work_seconds += 1
-            remaining -= 1
-        if remaining <= 0 and not self.stop_event.is_set():
-            self.push(f"{label} завершена!")
+        self.is_break = is_break
+
+        self.current_timer = TimerThread(duration, label, is_break)
+        self.current_timer.timer_signal.connect(self.update_timer_display)
+        self.current_timer.timer_finished.connect(self.timer_finished)
+        self.current_timer.start()
+
+    def update_timer_display(self, remaining, label, is_break):
+        """Обновление отображения таймера"""
+        mins = remaining // 60
+        secs = remaining % 60
+        self.timer_label.setText(f"{label}: {mins:02d}:{secs:02d}")
+
+        # Увеличиваем счётчик рабочего времени
+        if not is_break:
+            self.total_work_seconds += 1
+
+    def timer_finished(self, label, is_break):
+        """Обработка завершения таймера"""
+        self.push(f"{label} завершена!")
+
+        if not is_break:
+            # Закончилась работа - начинаем перерыв
+            self.break_count += 1
+            self.start_timer(BREAK_TIME, "Перерыв", is_break=True)
+        else:
+            # Закончился перерыв - продолжаем работу
+            self.start_timer(WORK_TIME, "Работа")
+
+    def update_verse(self, initial=False):
+        """Обновление библейского стиха"""
+        verse = random.choice(BIBLE_VERSES)
+        self.verse_label.setText(verse)
+
+    def prayer_reminder(self):
+        """Напоминание о молитве"""
+        self.push("Молиться не забывай, солнышко 🌞")
 
     def pause_day(self):
+        """Пауза на обед"""
         self.push("Правильно, большие перерывы тоже надо делать)")
-        self.stop_event.set()
+
+        if self.current_timer:
+            self.current_timer.stop()
+
         self.is_running = False
         self.is_break = False
         self.break_count += 1
-        self.timer_label.config(text="Пауза…")
-        self.start_button.config(text="Продолжить работу", state=tk.NORMAL)
-        self.pause_button.config(state=tk.DISABLED)
+        self.timer_label.setText("Пауза…")
+        self.start_button.setText("Продолжить работу")
+        self.start_button.setEnabled(True)
+        self.pause_button.setEnabled(False)
 
     def end_day(self):
-        self.stop_event.set()
+        """Завершение рабочего дня"""
+        if self.current_timer:
+            self.current_timer.stop()
+
         self.is_running = False
 
         hours = self.total_work_seconds // 3600
@@ -169,32 +287,38 @@ class WorkTimerApp:
             f"Итоги дня:\n\n"
             f"Работал: {hours} ч {mins} мин\n"
             f"Перерывов: {self.break_count}\n\n"
-            f"Сделано Странником: https://t.me/periplanomenoc. Надеюсь, вы нашли сегодня немного времени для молитвы!"
+            f"Сделано Странником: https://t.me/periplanomenoc.\n"
+            f"Надеюсь, вы нашли сегодня немного времени для молитвы!"
         )
 
-        messagebox.showinfo("Итоги дня", result_text)
-        self.root.destroy()
+        QMessageBox.information(self, "Итоги дня", result_text)
+        self.quit_application()
 
-    def on_close(self):
-        messagebox.showinfo(
-            "Не забудьте поблагодарить)",
-            "Сделано Странником: https://t.me/periplanomenoc. Надеюсь, вы нашли сегодня немного времени для молитвы!",
-        )
-        self.root.destroy()
+    def closeEvent(self, event):
+        """Обработка закрытия окна"""
+        event.ignore()
+        self.hide()
+        self.push("Приложение свернуто в трей. Чтобы закрыть - используйте правую кнопку мыши на иконке.")
+
+    def quit_application(self):
+        """Корректный выход из приложения"""
+        if self.current_timer:
+            self.current_timer.stop()
+
+        self.verse_timer.stop()
+        self.prayer_timer.stop()
+
+        QApplication.quit()
 
 
 def main():
-    match system():
-        case "Windows":
-            notifier = create_windows_notifier()
-        case "Linux":
-            notifier = create_linux_notifier()
-        case _:
-            raise RuntimeError("Unknown platform")
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
 
-    root = tk.Tk()
-    WorkTimerApp(root, notifier)
-    root.mainloop()
+    window = WorkTimerApp()
+    window.show()
+
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
