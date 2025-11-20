@@ -7,6 +7,7 @@ from typing import Final
 
 PROJECT_ROOT: Final[Path] = Path(getattr(sys, "_MEIPASS", ".")).resolve()
 ICON_PATH: Final[Path] = PROJECT_ROOT / "assets" / "icon.ico"
+PYPROJECT_TOML_PATH: Final[Path] = PROJECT_ROOT / "pyproject.toml"
 
 WORK_TIME = 25 * 60
 BREAK_TIME = 5 * 60

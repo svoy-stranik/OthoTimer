@@ -19,13 +19,15 @@ from constants import (
     VERSE_UPDATE_INTERVAL,
     WORK_TIME,
 )
+from utils import reveal_project_version
 
 
 class WorkTimerApp:
     def __init__(self, root, notifier):
         self.root = root
         self.notifier = notifier
-        self.root.title("Рабочий таймер от Странника v.1.0.0")
+        self.root.geometry("410x270")
+        self.root.title(f"Рабочий таймер от Странника v{reveal_project_version()}")
 
         # --- Устанавливаем иконку окна ---
         try:
