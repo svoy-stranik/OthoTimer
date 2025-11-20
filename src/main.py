@@ -85,7 +85,8 @@ class WorkTimerApp:
 
     def push(self, msg):
         Thread(
-            target=lambda: self.notifier.notify(title="Православный таймер", message=msg, timeout=5), daemon=True
+            target=lambda: self.notifier.notify(title="Православный таймер", message=msg, timeout=5),
+            daemon=True,
         ).start()
 
     def start_day(self):
