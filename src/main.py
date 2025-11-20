@@ -1,11 +1,13 @@
 import tkinter as tk
 from datetime import datetime
+from platform import system
 from random import choice
 from threading import Event, Thread
 from time import sleep
 from tkinter import messagebox
 
-from plyer import notification
+from plyer.platforms.linux.notification import instance as create_linux_notifier
+from plyer.platforms.win.notification import instance as create_windows_notifier
 
 from constants import (
     BIBLE_VERSES,
@@ -20,8 +22,9 @@ from constants import (
 
 
 class WorkTimerApp:
-    def __init__(self, root):
+    def __init__(self, root, notifier):
         self.root = root
+        self.notifier = notifier
         self.root.title("Рабочий таймер от Странника v.1.0.0")
 
         # --- Устанавливаем иконку окна ---
@@ -81,12 +84,9 @@ class WorkTimerApp:
         self.root.after(PRAYER_REMINDER_INTERVAL * 1000, self.prayer_reminder_loop)
 
     def push(self, msg):
-        notify = notification.notify
-
-        if notify is None:
-            raise RuntimeError("notification.notify is None!")
-
-        Thread(target=lambda: notify(title="Православный таймер", message=msg, timeout=5), daemon=True).start()
+        Thread(
+            target=lambda: self.notifier.notify(title="Православный таймер", message=msg, timeout=5), daemon=True
+        ).start()
 
     def start_day(self):
         if not self.is_running:
@@ -183,8 +183,16 @@ class WorkTimerApp:
 
 
 def main():
+    match system():
+        case "Windows":
+            notifier = create_windows_notifier()
+        case "Linux":
+            notifier = create_linux_notifier()
+        case _:
+            raise RuntimeError("Unknown platform")
+
     root = tk.Tk()
-    WorkTimerApp(root)
+    WorkTimerApp(root, notifier)
     root.mainloop()
 
 
