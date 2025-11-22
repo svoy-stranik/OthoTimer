@@ -185,8 +185,7 @@ class SystemTrayManager:
 
     def _quit_from_tray(self) -> None:
         """Выход из трея без уведомления."""
-        self.main_window._show_tray_notification = False
-        self.main_window.quit_application()
+        self.main_window.quit_application()  # Просто вызываем quit_application, он сам сбросит флаг
 
     def _on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """Обработка активации иконки в трее."""
@@ -389,6 +388,9 @@ class WorkTimerApp(QMainWindow):
 
     def quit_application(self) -> None:
         """Корректный выход из приложения."""
+        # Сбрасываем флаг уведомления при любом выходе
+        self._show_tray_notification = False
+
         if self.current_timer:
             self.current_timer.stop()
 
