@@ -8,8 +8,13 @@ from typing import override
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QFont, QIcon
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
+    QCheckBox,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -33,6 +38,303 @@ from constants import (
 )
 from schema import AppState, DaySummary, LunchPeriod
 from utils import reveal_project_version
+
+
+class TodoItemWidget(QWidget):
+    """Виджет для одной задачи в списке."""
+
+    def __init__(self, text: str = "", completed: bool = False, parent=None):
+        super().__init__(parent)
+        self.text = text
+        self.completed = completed
+        self.is_editing = False
+
+        # Темный фон для виджета задачи
+        self.setStyleSheet("QWidget { background: transparent; }")
+
+        self._setup_ui()
+        self._update_appearance()
+
+    def _setup_ui(self):
+        """Настройка интерфейса виджета задачи."""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setSpacing(8)
+
+        # Чекбокс для отметки выполнения
+        self.checkbox = QCheckBox()
+        self.checkbox.setChecked(self.completed)
+        self.checkbox.stateChanged.connect(self._on_checkbox_changed)
+        self.checkbox.setStyleSheet("""
+            QCheckBox {
+                spacing: 8px;
+                background: transparent;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 2px solid #D2B48C;
+                border-radius: 3px;
+                background: #404040;
+            }
+            QCheckBox::indicator:checked {
+                background: #D2691E;
+                border: 2px solid #D2691E;
+            }
+            QCheckBox::indicator:hover {
+                border: 2px solid #F4A460;
+            }
+        """)
+        layout.addWidget(self.checkbox)
+
+        # Поле для текста задачи (в режиме отображения)
+        self.text_label = QLabel(self.text)
+        self.text_label.setWordWrap(True)
+        self.text_label.setMinimumHeight(30)
+        self.text_label.setStyleSheet("""
+            QLabel {
+                font-family: "Times New Roman";
+                font-size: 12px;
+                color: #E8E8E8;
+                padding: 5px;
+                background: #505050;
+                border: 1px solid #696969;
+                border-radius: 3px;
+            }
+        """)
+        layout.addWidget(self.text_label, 1)
+
+        # Поле для редактирования (скрыто по умолчанию)
+        self.edit_input = QLineEdit(self.text)
+        self.edit_input.setVisible(False)
+        self.edit_input.setMinimumHeight(30)
+        self.edit_input.setStyleSheet("""
+            QLineEdit {
+                font-family: "Times New Roman";
+                font-size: 12px;
+                color: white;
+                padding: 5px;
+                background: #606060;
+                border: 2px solid #D2691E;
+                border-radius: 3px;
+            }
+        """)
+        self.edit_input.returnPressed.connect(self._finish_editing)
+        self.edit_input.focusOutEvent = self._on_edit_focus_out
+        layout.addWidget(self.edit_input, 1)
+
+        # Кнопка удаления
+        self.delete_btn = QPushButton("✕")
+        self.delete_btn.setFixedSize(24, 24)
+        self.delete_btn.setStyleSheet("""
+            QPushButton {
+                background: #8B0000;
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #A52A2A;
+            }
+        """)
+        self.delete_btn.clicked.connect(self._request_delete)
+        layout.addWidget(self.delete_btn)
+
+    def _update_appearance(self):
+        """Обновление внешнего вида в зависимости от статуса."""
+        if self.completed:
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    font-family: "Times New Roman";
+                    font-size: 12px;
+                    color: #A0A0A0;
+                    padding: 5px;
+                    background: #383838;
+                    border: 1px solid #505050;
+                    border-radius: 3px;
+                    text-decoration: line-through;
+                }
+            """)
+        else:
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    font-family: "Times New Roman";
+                    font-size: 12px;
+                    color: #E8E8E8;
+                    padding: 5px;
+                    background: #505050;
+                    border: 1px solid #696969;
+                    border-radius: 3px;
+                }
+            """)
+
+    def _on_checkbox_changed(self, state):
+        """Обработка изменения чекбокса."""
+        self.completed = (state == Qt.CheckState.Checked.value)
+        self._update_appearance()
+
+    def start_editing(self):
+        """Начать редактирование задачи."""
+        self.is_editing = True
+        self.text_label.setVisible(False)
+        self.edit_input.setVisible(True)
+        self.edit_input.setText(self.text)
+        self.edit_input.setFocus()
+        self.edit_input.selectAll()
+
+    def _finish_editing(self):
+        """Завершить редактирование."""
+        new_text = self.edit_input.text().strip()
+        if new_text:
+            self.text = new_text
+            self.text_label.setText(new_text)
+
+        self.is_editing = False
+        self.edit_input.setVisible(False)
+        self.text_label.setVisible(True)
+
+    def _on_edit_focus_out(self, event):
+        """Обработка потери фокуса при редактировании."""
+        self._finish_editing()
+        super().focusOutEvent(event)
+
+    def _request_delete(self):
+        """Запрос на удаление задачи."""
+        reply = QMessageBox.question(
+            self,
+            "Удаление задачи",
+            f"Вы уверены, что хотите удалить задачу:\n\"{self.text}\"?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.delete_requested.emit()
+
+
+# Добавляем сигнал для удаления
+TodoItemWidget.delete_requested = pyqtSignal()
+
+
+class TodoListWidget(QWidget):
+    """Виджет списка задач."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.tasks = []
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Настройка интерфейса списка задач."""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(5)
+
+        # Устанавливаем темный фон для всего виджета
+        self.setStyleSheet("""
+            QWidget {
+                background: #2F2F2F;
+                border-radius: 8px;
+                margin: 5px;
+            }
+        """)
+
+        # Заголовок
+        title = QLabel("Задачи")
+        title.setFont(QFont("Times New Roman", 14, QFont.Weight.Bold))
+        title.setStyleSheet("""
+            QLabel {
+                color: #D2B48C;
+                margin: 10px;
+                background: transparent;
+            }
+        """)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Поле для добавления новых задач
+        self.add_task_input = QLineEdit()
+        self.add_task_input.setPlaceholderText("Добавить новую задачу...")
+        self.add_task_input.setStyleSheet("""
+            QLineEdit {
+                font-family: "Times New Roman";
+                font-size: 12px;
+                padding: 8px;
+                background: #404040;
+                color: white;
+                border: 2px solid #8B4513;
+                border-radius: 5px;
+                margin: 0px 10px;
+            }
+            QLineEdit::placeholder {
+                color: #A0A0A0;
+            }
+            QLineEdit:focus {
+                border: 2px solid #D2691E;
+            }
+        """)
+        self.add_task_input.returnPressed.connect(self._add_new_task)
+        layout.addWidget(self.add_task_input)
+
+        # Список задач
+        self.tasks_list = QListWidget()
+        self.tasks_list.setStyleSheet("""
+            QListWidget {
+                background: #404040;
+                border: 2px solid #8B4513;
+                border-radius: 5px;
+                margin: 0px 10px;
+                outline: none;
+            }
+            QListWidget::item {
+                border-bottom: 1px solid #505050;
+                height: 45px;
+                background: #404040;
+            }
+            QListWidget::item:alternate {
+                background: #383838;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+            QListWidget::item:hover {
+                background: #484848;
+            }
+        """)
+        self.tasks_list.setAlternatingRowColors(True)
+        self.tasks_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        layout.addWidget(self.tasks_list)
+
+    def _add_new_task(self):
+        """Добавление новой задачи."""
+        text = self.add_task_input.text().strip()
+        if text:
+            self._create_task_item(text)
+            self.add_task_input.clear()
+
+    def _create_task_item(self, text: str, completed: bool = False):
+        """Создание элемента задачи."""
+        item = QListWidgetItem()
+        item_widget = TodoItemWidget(text, completed)
+        item_widget.delete_requested.connect(lambda: self._delete_task_item(item))
+
+        # Обработка двойного клика для редактирования
+        def start_edit():
+            if not item_widget.completed:  # Редактировать можно только незавершенные задачи
+                item_widget.start_editing()
+
+        # Устанавливаем кастомный виджет
+        self.tasks_list.addItem(item)
+        self.tasks_list.setItemWidget(item, item_widget)
+
+        # Обработчик двойного клика
+        self.tasks_list.itemDoubleClicked.connect(lambda: start_edit())
+
+    def _delete_task_item(self, item):
+        """Удаление задачи."""
+        row = self.tasks_list.row(item)
+        self.tasks_list.takeItem(row)
 
 
 class VerseManager:
@@ -233,7 +535,8 @@ class WorkTimerUI:
         self.end_button: QPushButton
         self.title_label: QLabel
         self.verse_label: QLabel
-        self.link_widget: QWidget  # Виджет для ссылки
+        self.link_widget: QWidget
+        self.todo_widget: TodoListWidget  # TODO-лист
 
         self._setup_ui()
 
@@ -241,7 +544,8 @@ class WorkTimerUI:
         """Настройка пользовательского интерфейса."""
         self._create_timer_label()
         self._create_buttons()
-        self._create_link_widget()  # Добавляем виджет ссылки сразу после кнопок
+        self._create_link_widget()
+        self._create_todo_widget()  # Добавляем TODO-лист
         self._create_prayer_section()
 
     def _create_timer_label(self) -> None:
@@ -273,13 +577,13 @@ class WorkTimerUI:
         # Контейнер для ссылки
         link_container = QWidget()
         link_layout = QVBoxLayout(link_container)
-        link_layout.setContentsMargins(0, 15, 0, 15)  # Отступы сверху и снизу
+        link_layout.setContentsMargins(0, 15, 0, 15)
 
         # Виджет с ссылкой и кнопками
         self.link_widget = QWidget()
         link_inner_layout = QHBoxLayout(self.link_widget)
         link_inner_layout.setContentsMargins(20, 0, 20, 0)
-        link_inner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Выравнивание по центру
+        link_inner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Текст ссылки
         link_label = QLabel("https://t.me/periplanomenoc")
@@ -325,8 +629,10 @@ class WorkTimerUI:
         link_layout.addWidget(self.link_widget)
         self.layout.addWidget(link_container)
 
-        # Добавляем растягивающееся пространство после ссылки
-        self.layout.addStretch(1)
+    def _create_todo_widget(self) -> None:
+        """Создание TODO-листа."""
+        self.todo_widget = TodoListWidget()
+        self.layout.addWidget(self.todo_widget)
 
     def _create_prayer_section(self) -> None:
         """Создание секции с молитвой и стихами."""
