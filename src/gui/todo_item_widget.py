@@ -30,12 +30,12 @@ class TodoItemWidget(QWidget):
         self.text: str = text
         self.completed: bool = completed
         self.is_editing: bool = False
-        self._widgets_initialized: bool = False  # Флаг инициализации
+        self._widgets_initialized: bool = False
 
         self.setStyleSheet("QWidget { background: transparent; }")
         self._setup_ui()
         self._update_appearance()
-        self._widgets_initialized = True  # Виджеты инициализированы
+        self._widgets_initialized = True
 
     def _setup_ui(self) -> None:
         layout = QHBoxLayout(self)
