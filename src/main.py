@@ -1,10 +1,11 @@
 import random
 import sys
 import webbrowser
+import json
 from datetime import datetime
 from typing import override
 
-from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -28,9 +29,68 @@ from constants import (
     PRAYER_REMINDER_INTERVAL,
     VERSE_UPDATE_INTERVAL,
     WORK_TIME,
+    USED_VERSES_FILE,
 )
-from schema import AppState, DaySummary
+from schema import AppState, DaySummary, LunchPeriod
 from utils import reveal_project_version
+
+
+class VerseManager:
+    """Менеджер для управления цитатами без повторений."""
+
+    def __init__(self):
+        self.used_verses = set()
+        self.available_verses = list(BIBLE_VERSES)
+        self._load_used_verses()
+
+    def _load_used_verses(self):
+        """Загрузить использованные цитаты из файла."""
+        if USED_VERSES_FILE.exists():
+            try:
+                with open(USED_VERSES_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Проверяем, что файл за сегодня
+                    if data.get('date') == datetime.now().strftime("%Y-%m-%d"):
+                        self.used_verses = set(data.get('used_verses', []))
+            except (json.JSONDecodeError, KeyError):
+                self.used_verses = set()
+
+    def _save_used_verses(self):
+        """Сохранить использованные цитаты в файл."""
+        data = {
+            'date': datetime.now().strftime("%Y-%m-%d"),
+            'used_verses': list(self.used_verses)
+        }
+        with open(USED_VERSES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def get_random_verse(self):
+        """Получить случайную неповторяющуюся цитату."""
+        if not self.available_verses:
+            # Если все цитаты использованы, сбрасываем
+            self.available_verses = list(BIBLE_VERSES)
+            self.used_verses.clear()
+
+        # Ищем цитату, которая еще не использовалась
+        available_verses = [v for v in self.available_verses if v not in self.used_verses]
+
+        if not available_verses:
+            # Если все доступные уже использованы, сбрасываем
+            self.available_verses = list(BIBLE_VERSES)
+            self.used_verses.clear()
+            available_verses = self.available_verses
+
+        verse = random.choice(available_verses)
+        self.used_verses.add(verse)
+        self._save_used_verses()
+        return verse
+
+    def reset_daily_verses(self):
+        """Сбросить использованные цитаты для нового дня."""
+        self.used_verses.clear()
+        self.available_verses = list(BIBLE_VERSES)
+        if USED_VERSES_FILE.exists():
+            USED_VERSES_FILE.unlink()
 
 
 class DaySummaryDialog(QMessageBox):
@@ -46,13 +106,29 @@ class DaySummaryDialog(QMessageBox):
 
     def _setup_ui(self):
         # Основной текст
+        lunch_periods_text = "\n".join([
+            f"  • {period.start_time} - {period.end_time}"
+            for period in self.summary.lunch_periods
+            if period.end_time
+        ])
+
         result_text = (
             f"Итоги дня:\n\n"
             f"Работал: {self.summary.work_hours} ч {self.summary.work_minutes} мин\n"
-            f"Перерывов: {self.summary.break_count}\n\n"
+            f"Коротких перерывов: {self.summary.break_count}\n"
+            f"Обедов: {self.summary.lunch_count}\n"
+        )
+
+        if self.summary.lunch_periods:
+            result_text += f"Время обедов:\n{lunch_periods_text}\n\n"
+        else:
+            result_text += "\n"
+
+        result_text += (
             f"Сделано Странником.\n"
             f"Надеюсь, вы нашли сегодня немного времени для молитвы!"
         )
+
         self.setText(result_text)
 
         # Создаем виджет для ссылки и кнопок
@@ -116,6 +192,32 @@ class DaySummaryDialog(QMessageBox):
     def _open_channel(self):
         """Открыть канал в браузере."""
         webbrowser.open("https://t.me/periplanomenoc")
+
+
+class TimerThread(QThread):
+    timer_signal = pyqtSignal(int, str, bool)  # remaining, label, is_break
+    timer_finished = pyqtSignal(str, bool)  # label, is_break
+
+    def __init__(self, duration: int, label: str, *, is_break: bool = False) -> None:
+        super().__init__()
+        self.duration: int = duration
+        self.label: str = label
+        self.is_break: bool = is_break
+        self._is_running: bool = True
+
+    def run(self) -> None:
+        remaining = self.duration
+        while remaining > 0 and self._is_running:
+            self.timer_signal.emit(remaining, self.label, self.is_break)
+            self.sleep(1)
+            remaining -= 1
+
+        if remaining <= 0 and self._is_running:
+            self.timer_finished.emit(self.label, self.is_break)
+
+    def stop(self) -> None:
+        self._is_running = False
+        self.wait()
 
 
 class WorkTimerUI:
@@ -268,6 +370,8 @@ class WorkTimerApp(QMainWindow):
         self._app_state = AppState()
         self.current_timer: TimerThread | None = None
         self._show_tray_notification: bool = True
+        self.verse_manager = VerseManager()
+        self._last_timer_type: str = ""  # Для отслеживания типа предыдущего таймера
 
         self._init_ui()
         self.tray_manager = SystemTrayManager(self)
@@ -312,7 +416,8 @@ class WorkTimerApp(QMainWindow):
             last_launch = LAUNCH_FILE.read_text(encoding="utf-8")
 
         if last_launch != today:
-            # Первый запуск дня - показываем молитву
+            # Первый запуск дня - показываем молитву и сбрасываем цитаты
+            self.verse_manager.reset_daily_verses()
             self.ui.set_verse_text(OTCHE_NASH)
             LAUNCH_FILE.write_text(today, encoding="utf-8")
         else:
@@ -331,6 +436,10 @@ class WorkTimerApp(QMainWindow):
         """Начать рабочий день."""
         if self._app_state.is_running:
             return
+
+        # Если был обед, завершаем его период
+        if self._app_state.current_lunch_start:
+            self._end_lunch_period()
 
         self._app_state.is_running = True
         self.ui.update_button_states(start_enabled=False, pause_enabled=True, end_enabled=True)
@@ -351,6 +460,7 @@ class WorkTimerApp(QMainWindow):
 
     def start_work_cycle(self) -> None:
         """Запуск цикла работы."""
+        self._last_timer_type = "work"
         self.start_timer(WORK_TIME, "Работа")
 
     def start_timer(self, duration: int, label: str, *, is_break: bool = False) -> None:
@@ -358,7 +468,11 @@ class WorkTimerApp(QMainWindow):
         if self.current_timer:
             self.current_timer.stop()
 
-        self.push(f"{label} началась!")
+        # Показываем уведомление только при смене типа таймера
+        if (is_break and self._last_timer_type != "break") or (not is_break and self._last_timer_type != "work"):
+            self.push(f"{label} началась!")
+
+        self._last_timer_type = "break" if is_break else "work"
         self._app_state.is_break = is_break
 
         self.current_timer = TimerThread(duration, label, is_break=is_break)
@@ -376,7 +490,7 @@ class WorkTimerApp(QMainWindow):
 
     def _on_timer_finished(self, label: str, is_break: bool) -> None:
         """Обработка завершения таймера."""
-        self.push(f"{label} завершена!")
+        # Не показываем уведомление о завершении - только о начале следующего этапа
 
         if not is_break:
             # Закончилась работа - начинаем перерыв
@@ -388,7 +502,7 @@ class WorkTimerApp(QMainWindow):
 
     def update_verse(self, *, initial: bool = False) -> None:
         """Обновление библейского стиха."""
-        verse = random.choice(BIBLE_VERSES)
+        verse = self.verse_manager.get_random_verse()
         self.ui.set_verse_text(verse)
 
     def prayer_reminder(self) -> None:
@@ -397,6 +511,10 @@ class WorkTimerApp(QMainWindow):
 
     def pause_day(self) -> None:
         """Пауза на обед."""
+        # Записываем время начала обеда
+        lunch_start = datetime.now().strftime("%H:%M")
+        self._app_state.current_lunch_start = lunch_start
+
         self.push("Правильно, большие перерывы тоже надо делать)")
 
         if self.current_timer:
@@ -404,17 +522,63 @@ class WorkTimerApp(QMainWindow):
 
         self._app_state.is_running = False
         self._app_state.is_break = False
-        self._app_state.break_count += 1
 
         self.ui.set_timer_label_text("Пауза…")
         self.ui.set_start_button_text("Продолжить работу")
         self.ui.update_button_states(start_enabled=True, pause_enabled=False, end_enabled=True)
 
+    def _end_lunch_period(self):
+        """Завершить период обеда."""
+        if self._app_state.current_lunch_start:
+            lunch_end = datetime.now().strftime("%H:%M")
+            # Проверяем, что обед длился хотя бы минуту (чтобы избежать случайных кликов)
+            start_dt = datetime.strptime(self._app_state.current_lunch_start, "%H:%M")
+            end_dt = datetime.strptime(lunch_end, "%H:%M")
+            duration_minutes = (end_dt - start_dt).total_seconds() / 60
+
+            if duration_minutes >= 1:  # Если обед длился хотя бы 1 минуту
+                lunch_period = LunchPeriod(
+                    start_time=self._app_state.current_lunch_start,
+                    end_time=lunch_end
+                )
+                self._app_state.lunch_periods.append(lunch_period)
+                self._app_state.lunch_count += 1
+                print(f"Добавлен обед: {self._app_state.current_lunch_start} - {lunch_end}")  # Для отладки
+            else:
+                print(f"Обед слишком короткий: {duration_minutes} минут")  # Для отладки
+
+            self._app_state.current_lunch_start = None
+
+    def start_day_after_lunch(self) -> None:
+        """Продолжить работу после обеда."""
+        self._end_lunch_period()
+
+        self._app_state.is_running = True
+        self.ui.update_button_states(start_enabled=False, pause_enabled=True, end_enabled=True)
+        self.ui.set_start_button_text("Начать рабочий день")
+        self.start_work_cycle()
+
     def _calculate_day_summary(self) -> DaySummary:
         """Расчет итогов дня."""
         hours = self._app_state.total_work_seconds // 3600
         mins = (self._app_state.total_work_seconds % 3600) // 60
-        return DaySummary(work_hours=hours, work_minutes=mins, break_count=self._app_state.break_count)
+
+        # Если есть незавершенный обед, завершаем его
+        if self._app_state.current_lunch_start:
+            self._end_lunch_period()
+
+        # Отладочная информация
+        print(f"Всего обедов: {len(self._app_state.lunch_periods)}")
+        for i, period in enumerate(self._app_state.lunch_periods):
+            print(f"Обед {i+1}: {period.start_time} - {period.end_time}")
+
+        return DaySummary(
+            work_hours=hours,
+            work_minutes=mins,
+            break_count=self._app_state.break_count,
+            lunch_count=len(self._app_state.lunch_periods),  # Используем фактическое количество
+            lunch_periods=self._app_state.lunch_periods
+        )
 
     def end_day(self) -> None:
         """Завершение рабочего дня."""
@@ -440,7 +604,7 @@ class WorkTimerApp(QMainWindow):
         self.hide()
 
         if self._show_tray_notification:
-            self.push("Приложение свернуто в трей. Чтобы закрыть - используйте правкую кнопку мыши на иконке.")
+            self.push("Приложение свернуто в трей. Чтобы закрыть - используйте правую кнопку мыши на иконке.")
 
     def quit_application(self) -> None:
         """Корректный выход из приложения."""

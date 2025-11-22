@@ -137,4 +137,6 @@ else:
     APPDATA_DIR = home_dir / ".WorkTimerStrannik"
 
 LAUNCH_FILE = APPDATA_DIR / "last_launch.txt"
+USED_VERSES_FILE = APPDATA_DIR / "used_verses.json"
+
 APPDATA_DIR.mkdir(parents=True, exist_ok=True)
