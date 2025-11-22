@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -31,12 +31,8 @@ class AppState:
     total_work_seconds: int = 0
     break_count: int = 0
     lunch_count: int = 0
-    lunch_periods: list[LunchPeriod] = None
+    lunch_periods: list[LunchPeriod] = field(default_factory=list)
     current_lunch_start: str | None = None
-
-    def __post_init__(self):
-        if self.lunch_periods is None:
-            self.lunch_periods = []
 
 
 @dataclass
