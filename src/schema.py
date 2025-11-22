@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -20,7 +19,7 @@ class AppConfig:
 @dataclass
 class LunchPeriod:
     start_time: str
-    end_time: Optional[str] = None
+    end_time: str | None = None
 
 
 @dataclass
@@ -32,8 +31,8 @@ class AppState:
     total_work_seconds: int = 0
     break_count: int = 0
     lunch_count: int = 0
-    lunch_periods: List[LunchPeriod] = None
-    current_lunch_start: Optional[str] = None
+    lunch_periods: list[LunchPeriod] = None
+    current_lunch_start: str | None = None
 
     def __post_init__(self):
         if self.lunch_periods is None:
@@ -46,4 +45,4 @@ class DaySummary:
     work_minutes: int
     break_count: int
     lunch_count: int
-    lunch_periods: List[LunchPeriod]
+    lunch_periods: list[LunchPeriod]
