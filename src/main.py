@@ -233,6 +233,7 @@ class WorkTimerUI:
         self.end_button: QPushButton
         self.title_label: QLabel
         self.verse_label: QLabel
+        self.link_widget: QWidget  # Виджет для ссылки
 
         self._setup_ui()
 
@@ -240,6 +241,7 @@ class WorkTimerUI:
         """Настройка пользовательского интерфейса."""
         self._create_timer_label()
         self._create_buttons()
+        self._create_link_widget()  # Добавляем виджет ссылки сразу после кнопок
         self._create_prayer_section()
 
     def _create_timer_label(self) -> None:
@@ -265,6 +267,65 @@ class WorkTimerUI:
         self.layout.addWidget(self.start_button)
         self.layout.addWidget(self.pause_button)
         self.layout.addWidget(self.end_button)
+
+    def _create_link_widget(self) -> None:
+        """Создание виджета с ссылкой на канал."""
+        # Контейнер для ссылки
+        link_container = QWidget()
+        link_layout = QVBoxLayout(link_container)
+        link_layout.setContentsMargins(0, 15, 0, 15)  # Отступы сверху и снизу
+
+        # Виджет с ссылкой и кнопками
+        self.link_widget = QWidget()
+        link_inner_layout = QHBoxLayout(self.link_widget)
+        link_inner_layout.setContentsMargins(20, 0, 20, 0)
+        link_inner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Выравнивание по центру
+
+        # Текст ссылки
+        link_label = QLabel("https://t.me/periplanomenoc")
+        link_label.setStyleSheet("font-weight: bold; color: #0066cc;")
+        link_inner_layout.addWidget(link_label)
+
+        # Кнопка Copy
+        copy_btn = QPushButton("Copy")
+        copy_btn.setFixedSize(50, 22)
+        copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        copy_btn.clicked.connect(self._copy_to_clipboard)
+        link_inner_layout.addWidget(copy_btn)
+
+        # Кнопка Open
+        open_btn = QPushButton("Open")
+        open_btn.setFixedSize(50, 22)
+        open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0088cc;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #006699;
+            }
+        """)
+        open_btn.clicked.connect(self._open_channel)
+        link_inner_layout.addWidget(open_btn)
+
+        link_layout.addWidget(self.link_widget)
+        self.layout.addWidget(link_container)
+
+        # Добавляем растягивающееся пространство после ссылки
         self.layout.addStretch(1)
 
     def _create_prayer_section(self) -> None:
@@ -282,6 +343,15 @@ class WorkTimerUI:
 
         self.layout.addWidget(self.title_label)
         self.layout.addWidget(self.verse_label)
+
+    def _copy_to_clipboard(self):
+        """Копировать ссылку в буфер обмена."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText("https://t.me/periplanomenoc")
+
+    def _open_channel(self):
+        """Открыть канал в браузере."""
+        webbrowser.open("https://t.me/periplanomenoc")
 
     def update_timer_display(self, remaining: int, label: str, is_break: bool) -> None:
         """Обновление отображения таймера."""
@@ -381,7 +451,7 @@ class WorkTimerApp(QMainWindow):
     def _init_ui(self) -> None:
         """Инициализация пользовательского интерфейса."""
         self.setWindowTitle(f"Рабочий таймер от Странника v{reveal_project_version()}")
-        self.setFixedSize(400, 500)
+        self.setFixedSize(400, 550)  # Увеличили высоту для нового элемента
         self.setWindowIcon(QIcon(str(ICON_PATH)))
 
         central_widget = QWidget()
