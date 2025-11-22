@@ -1,9 +1,10 @@
 import random
 import sys
+import webbrowser
 from datetime import datetime
 from typing import override
 
-from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QSize
 from PyQt6.QtGui import QAction, QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -15,6 +16,7 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
+    QHBoxLayout,
 )
 
 from constants import (
@@ -31,30 +33,89 @@ from schema import AppState, DaySummary
 from utils import reveal_project_version
 
 
-class TimerThread(QThread):
-    timer_signal = pyqtSignal(int, str, bool)  # remaining, label, is_break
-    timer_finished = pyqtSignal(str, bool)  # label, is_break
+class DaySummaryDialog(QMessageBox):
+    """Диалог с итогами дня."""
 
-    def __init__(self, duration: int, label: str, *, is_break: bool = False) -> None:
-        super().__init__()
-        self.duration: int = duration
-        self.label: str = label
-        self.is_break: bool = is_break
-        self._is_running: bool = True
+    def __init__(self, summary: DaySummary, parent=None):
+        super().__init__(parent)
+        self.summary = summary
+        self.setWindowTitle("Итоги дня")
+        self.setIcon(QMessageBox.Icon.Information)
 
-    def run(self) -> None:
-        remaining = self.duration
-        while remaining > 0 and self._is_running:
-            self.timer_signal.emit(remaining, self.label, self.is_break)
-            self.sleep(1)
-            remaining -= 1
+        self._setup_ui()
 
-        if remaining <= 0 and self._is_running:
-            self.timer_finished.emit(self.label, self.is_break)
+    def _setup_ui(self):
+        # Основной текст
+        result_text = (
+            f"Итоги дня:\n\n"
+            f"Работал: {self.summary.work_hours} ч {self.summary.work_minutes} мин\n"
+            f"Перерывов: {self.summary.break_count}\n\n"
+            f"Сделано Странником.\n"
+            f"Надеюсь, вы нашли сегодня немного времени для молитвы!"
+        )
+        self.setText(result_text)
 
-    def stop(self) -> None:
-        self._is_running = False
-        self.wait()
+        # Создаем виджет для ссылки и кнопок
+        link_widget = QWidget()
+        link_layout = QHBoxLayout(link_widget)
+        link_layout.setContentsMargins(0, 10, 0, 0)
+
+        # Текст ссылки
+        link_label = QLabel("https://t.me/periplanomenoc")
+        link_label.setStyleSheet("font-weight: bold; color: #0066cc;")
+        link_layout.addWidget(link_label)
+
+        # Кнопка Copy
+        copy_btn = QPushButton("Copy")
+        copy_btn.setFixedSize(60, 25)
+        copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        copy_btn.clicked.connect(self._copy_to_clipboard)
+        link_layout.addWidget(copy_btn)
+
+        # Кнопка Open
+        open_btn = QPushButton("Open")
+        open_btn.setFixedSize(60, 25)
+        open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0088cc;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #006699;
+            }
+        """)
+        open_btn.clicked.connect(self._open_channel)
+        link_layout.addWidget(open_btn)
+
+        link_layout.addStretch()
+
+        self.layout().addWidget(link_widget, self.layout().rowCount(), 0, 1, self.layout().columnCount())
+
+        # Стандартные кнопки
+        self.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+    def _copy_to_clipboard(self):
+        """Копировать ссылку в буфер обмена."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText("https://t.me/periplanomenoc")
+
+    def _open_channel(self):
+        """Открыть канал в браузере."""
+        webbrowser.open("https://t.me/periplanomenoc")
 
 
 class WorkTimerUI:
@@ -363,15 +424,10 @@ class WorkTimerApp(QMainWindow):
         self._app_state.is_running = False
 
         summary = self._calculate_day_summary()
-        result_text = (
-            f"Итоги дня:\n\n"
-            f"Работал: {summary.work_hours} ч {summary.work_minutes} мин\n"
-            f"Перерывов: {summary.break_count}\n\n"
-            f"Сделано Странником: https://t.me/periplanomenoc.\n"
-            f"Надеюсь, вы нашли сегодня немного времени для молитвы!"
-        )
 
-        QMessageBox.information(self, "Итоги дня", result_text)
+        # Используем кастомный диалог с кликабельными элементами
+        dialog = DaySummaryDialog(summary, self)
+        dialog.exec()
 
         # Отключаем уведомление и выходим
         self._show_tray_notification = False
@@ -384,7 +440,7 @@ class WorkTimerApp(QMainWindow):
         self.hide()
 
         if self._show_tray_notification:
-            self.push("Приложение свернуто в трей. Чтобы закрыть - используйте правую кнопку мыши на иконке.")
+            self.push("Приложение свернуто в трей. Чтобы закрыть - используйте правкую кнопку мыши на иконке.")
 
     def quit_application(self) -> None:
         """Корректный выход из приложения."""
