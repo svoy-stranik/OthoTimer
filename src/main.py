@@ -26,6 +26,7 @@ from constants import (
     VERSE_UPDATE_INTERVAL,
     WORK_TIME,
 )
+from utils import reveal_project_version
 
 
 class TimerThread(QThread):
@@ -81,7 +82,7 @@ class WorkTimerApp(QMainWindow):
         self.check_first_launch()
 
     def init_ui(self):
-        self.setWindowTitle("Рабочий таймер от Странника v.1.0.0")
+        self.setWindowTitle(f"Рабочий таймер от Странника v{reveal_project_version()}")
         self.setFixedSize(400, 500)
 
         # Устанавливаем иконку

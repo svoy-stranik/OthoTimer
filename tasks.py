@@ -35,6 +35,7 @@ def build(_: Context):
             uv run pyinstaller \
                 -Fwn OthoTimer \
                 --add-binary assets/icon.ico;assets \
+                --add-binary pyproject.toml;. \
                 -i assets/icon.ico \
                 -p src \
                 src/main.py
