@@ -111,7 +111,7 @@ class WorkTimerUI:
     def _create_prayer_section(self) -> None:
         self.title_label = QLabel("Молитва Господа Нашего Иисуса Христа:")
         self.title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        self.title_label.setStyleSheet("color: darkblue;")
+        self.title_label.setStyleSheet("color: red;")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.verse_label = QLabel()
