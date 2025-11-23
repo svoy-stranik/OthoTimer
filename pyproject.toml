@@ -1,6 +1,6 @@
 [project]
 name = "othotimer"
-version = "2.0.0a0"
+version = "2.0.0b1"
 description = ""
 readme = "README.md"
 authors = []

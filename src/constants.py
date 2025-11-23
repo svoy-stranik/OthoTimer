@@ -7,11 +7,29 @@ from typing import Final
 
 PROJECT_ROOT: Final[Path] = Path(getattr(sys, "_MEIPASS", ".")).resolve()
 ICON_PATH: Final[Path] = PROJECT_ROOT / "assets" / "icon.ico"
+PYPROJECT_TOML_PATH: Final[Path] = PROJECT_ROOT / "pyproject.toml"
 
 WORK_TIME = 25 * 60
 BREAK_TIME = 5 * 60
 VERSE_UPDATE_INTERVAL = 14400  # 4 часа
 PRAYER_REMINDER_INTERVAL = 90 * 60  # 1.5 часа
+
+COLOR_DARK_BG = "#2F2F2F"
+COLOR_DARKER_BG = "#404040"
+COLOR_DARKEST_BG = "#383838"
+COLOR_TEXT_LIGHT = "#E8E8E8"
+COLOR_TEXT_MUTED = "#A0A0A0"
+COLOR_ACCENT_BROWN = "#8B4513"
+COLOR_ACCENT_GOLD = "#D2B48C"
+COLOR_ACCENT_ORANGE = "#D2691E"
+COLOR_DELETE_RED = "#8B0000"
+COLOR_DELETE_HOVER = "#A52A2A"
+
+TASK_ITEM_HEIGHT = 45
+BUTTON_SMALL_SIZE = (50, 22)
+BUTTON_TINY_SIZE = (24, 24)
+
+TELEGRAM_URL = "https://t.me/periplanomenoc"
 
 OTCHE_NASH = (
     "Отче наш, Иже еси на небесе́х! "
@@ -136,4 +154,6 @@ else:
     APPDATA_DIR = home_dir / ".WorkTimerStrannik"
 
 LAUNCH_FILE = APPDATA_DIR / "last_launch.txt"
+USED_VERSES_FILE = APPDATA_DIR / "used_verses.json"
+
 APPDATA_DIR.mkdir(parents=True, exist_ok=True)
