@@ -3,7 +3,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 class TimerThread(QThread):
     timer_signal = pyqtSignal(int, str, bool)
-    timer_finished = pyqtSignal(str, bool)
+    timer_finished = pyqtSignal(bool)
 
     def __init__(self, duration: int, label: str, *, is_break: bool = False) -> None:
         super().__init__()
@@ -20,7 +20,7 @@ class TimerThread(QThread):
             remaining -= 1
 
         if remaining <= 0 and self._is_running:
-            self.timer_finished.emit(self.label, self.is_break)
+            self.timer_finished.emit(self.is_break)
 
     def stop(self) -> None:
         self._is_running = False
