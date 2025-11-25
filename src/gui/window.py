@@ -174,12 +174,14 @@ class WorkTimerApp(QMainWindow):
         if not is_break:
             self._app_state.total_work_seconds += 1
 
-    def _on_timer_finished(self, *, is_break: bool) -> None:
-        if not is_break:
+    def _on_timer_finished(self, is_break: bool) -> None:  # noqa: FBT001
+        if is_break:
+            self.start_timer(WORK_TIME, "Работа")
+            self.push("Опять работа!")
+        else:
             self._app_state.break_count += 1
             self.start_timer(BREAK_TIME, "Перерыв", is_break=True)
-        else:
-            self.start_timer(WORK_TIME, "Работа")
+            self.push("Время перерыва! Отдохни немного)")
 
     def update_verse(self) -> None:
         verse = self.verse_manager.get_random_verse()
