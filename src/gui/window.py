@@ -158,9 +158,6 @@ class WorkTimerApp(QMainWindow):
         if self.current_timer:
             self.current_timer.stop()
 
-        if (is_break and self._last_timer_type != "break") or (not is_break and self._last_timer_type != "work"):
-            self.push(f"{label} началась!")
-
         self._last_timer_type = "break" if is_break else "work"
         self._app_state.is_break = is_break
 
