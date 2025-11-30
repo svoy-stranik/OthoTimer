@@ -33,7 +33,7 @@ def build(_: Context):
     system(
         """
             uv run pyinstaller \
-                -Fn OthoTimer \
+                -Fwn OthoTimer \
                 --add-binary assets/icon.ico;assets \
                 --add-binary pyproject.toml;. \
                 -i assets/icon.ico \
