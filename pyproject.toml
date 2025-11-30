@@ -1,12 +1,14 @@
 [project]
 name = "othotimer"
-version = "2.0.0b3"
+version = "2.0.0b4"
 description = ""
 readme = "README.md"
 authors = []
 requires-python = ">=3.14"
 dependencies = [
+    "httpx>=0.28.1",
     "invoke>=2.2.1",
+    "packaging>=25.0",
     "pyqt6>=6.10.0",
 ]
 

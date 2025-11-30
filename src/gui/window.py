@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import override
 
+from httpx import ConnectError, HTTPError
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
     QMenu,
+    QMessageBox,
     QSystemTrayIcon,
     QWidget,
 )
@@ -14,6 +16,7 @@ from PyQt6.QtWidgets import (
 from constants import (
     BREAK_TIME,
     ICON_PATH,
+    IS_STANDALONE,
     LAUNCH_FILE,
     OTCHE_NASH,
     PRAYER_REMINDER_INTERVAL,
@@ -24,6 +27,7 @@ from gui.day_summary_dialog import DaySummaryDialog
 from gui.work_timer import WorkTimerUI
 from schema import AppState, DaySummary, LunchPeriod
 from timer import TimerThread
+from updater import Updater
 from utils import reveal_project_version
 from verse_manager import VerseManager
 
@@ -70,13 +74,14 @@ class SystemTrayManager:
 
 
 class WorkTimerApp(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, updater: Updater) -> None:
         super().__init__()
         self._app_state = AppState()
         self.current_timer: TimerThread | None = None
         self._show_tray_notification: bool = True
         self.verse_manager = VerseManager()
         self._last_timer_type: str = ""
+        self.updater = updater
 
         self._init_ui()
         self.tray_manager = SystemTrayManager(self)
@@ -124,6 +129,39 @@ class WorkTimerApp(QMainWindow):
             self._app_state.verse_started = True
             self._app_state.verse_updating = True
             self.verse_timer.start(VERSE_UPDATE_INTERVAL * 1000)
+
+    def check_for_updates(self) -> None:
+        if not IS_STANDALONE:
+            return
+
+        try:
+            current_version = reveal_project_version()
+            latest_version = self.updater.get_latest_version()
+        except ConnectError:
+            self.push("Не удалось проверить обновления, подробная информация в логе")
+            return
+
+        if current_version >= latest_version:
+            return
+
+        self._ask_for_update()
+
+    def _ask_for_update(self) -> None:
+        msg_box = QMessageBox()
+        msg_box.setWindowTitle("Доступно обновление")
+        msg_box.setText("Доступна новая версия приложения. Хотите обновиться сейчас?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+
+        reply = msg_box.exec()
+        if reply == QMessageBox.StandardButton.Yes:
+            self._perform_update()
+
+    def _perform_update(self) -> None:
+        try:
+            self.updater.update()
+        except HTTPError, ConnectError:
+            self.push("Не удалось выполнить обновление, подробная информация в логе")
 
     def push(self, msg: str) -> None:
         self.tray_manager.show_notification("Православный таймер", msg)
