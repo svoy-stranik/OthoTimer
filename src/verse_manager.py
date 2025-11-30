@@ -6,6 +6,7 @@ from constants import (
     BIBLE_VERSES,
     USED_VERSES_FILE,
 )
+from logger import logger
 
 
 class VerseManager:
@@ -22,6 +23,7 @@ class VerseManager:
                     if data.get("date") == datetime.now().strftime("%Y-%m-%d"):
                         self.used_verses = set(data.get("used_verses", []))
             except (json.JSONDecodeError, KeyError):
+                logger.warning("Failed to load used verses", exc_info=True)
                 self.used_verses = set()
 
     def _save_used_verses(self) -> None:

@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime
 from typing import override
 
@@ -25,6 +26,7 @@ from constants import (
 )
 from gui.day_summary_dialog import DaySummaryDialog
 from gui.work_timer import WorkTimerUI
+from logger import logger
 from schema import AppState, DaySummary, LunchPeriod
 from timer import TimerThread
 from updater import Updater
@@ -70,6 +72,7 @@ class SystemTrayManager:
 
     def show_notification(self, title: str, message: str) -> None:
         if self.notifier:
+            logger.debug("Notification: %s - %s", title, message)
             self.notifier.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, 5000)
 
 
@@ -134,10 +137,13 @@ class WorkTimerApp(QMainWindow):
         if not IS_STANDALONE:
             return
 
+        current_version = reveal_project_version()
+        logger.debug("Current version is: %s", current_version)
+
         try:
-            current_version = reveal_project_version()
             latest_version = self.updater.get_latest_version()
-        except ConnectError:
+        except ConnectError, HTTPError:
+            logger.error("Failed to check for updates", exc_info=True)
             self.push("Не удалось проверить обновления, подробная информация в логе")
             return
 
@@ -161,12 +167,15 @@ class WorkTimerApp(QMainWindow):
         try:
             self.updater.update()
         except HTTPError, ConnectError:
+            logger.error("Failed to download update", exc_info=True)
             self.push("Не удалось выполнить обновление, подробная информация в логе")
 
     def push(self, msg: str) -> None:
         self.tray_manager.show_notification("Православный таймер", msg)
 
     def start_day(self) -> None:
+        logger.info("Day started")
+
         if self._app_state.is_running:
             return
 
@@ -199,6 +208,8 @@ class WorkTimerApp(QMainWindow):
         self._last_timer_type = "break" if is_break else "work"
         self._app_state.is_break = is_break
 
+        logger.debug("Starting timer: %s", self._last_timer_type)
+
         self.current_timer = TimerThread(duration, label, is_break=is_break)
         self.current_timer.timer_signal.connect(self._on_timer_update)
         self.current_timer.timer_finished.connect(self._on_timer_finished)
@@ -229,6 +240,7 @@ class WorkTimerApp(QMainWindow):
         lunch_start = datetime.now().strftime("%H:%M")
         self._app_state.current_lunch_start = lunch_start
 
+        logger.debug("Pause")
         self.push("Правильно, большие перерывы тоже надо делать)")
 
         if self.current_timer:
@@ -279,6 +291,8 @@ class WorkTimerApp(QMainWindow):
         summary = self._calculate_day_summary()
         dialog = DaySummaryDialog(summary, self)
         dialog.exec()
+
+        logger.info("Day ended: %s", asdict(summary))
 
         self._show_tray_notification = False
         self.quit_application()

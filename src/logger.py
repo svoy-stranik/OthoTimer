@@ -3,36 +3,10 @@ import threading
 from logging import getLogger
 from logging.config import dictConfig
 
-
-logging_config = {
-    "version": 1,
-    "disable_existing_loggers": True,
-    "formatters": {
-        "default": {
-            "format": "[%(asctime)s] <%(levelname)s> %(funcName)s: %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-        }
-    },
-    "handlers": {
-        "console": {
-            "formatter": "default",
-            "class": "logging.StreamHandler",
-            "stream": "ext://sys.stdout",
-        },
-        "file": {
-            "formatter": "default",
-            "class": "logging.FileHandler",
-            "filename": "timer.log",
-        },
-    },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console", "file"],
-    },
-}
+from constants import LOGGER_CONFIG
 
 
-dictConfig(logging_config)
+dictConfig(LOGGER_CONFIG)
 logger = getLogger("Otho Timer")
 
 

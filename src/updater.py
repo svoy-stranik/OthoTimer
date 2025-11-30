@@ -6,6 +6,7 @@ from httpx import Client
 from packaging.version import Version
 
 from constants import REPOSITORY_RAW_FS
+from logger import logger
 from utils import get_version_from_pyproject_toml
 
 
@@ -22,19 +23,24 @@ class Updater:
     def get_latest_version(self) -> Version:
         res = self.client.get("/pyproject.toml")
         res.raise_for_status()
+        version = get_version_from_pyproject_toml(res.text)
+        logger.info("Latest version is %s", version)
 
-        return get_version_from_pyproject_toml(res.text)
+        return version
 
     def update(self):
+        logger.info("Updating")
         self._download_executable()
         self._swap_executables()
         self._restart()
 
     def _restart(self):
+        logger.debug("Restarting")
         Popen([self.executable_path], env={**environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"})
         _exit(0)
 
     def _download_executable(self):
+        logger.debug("Downloading executable")
         res = self.client.get("/dist/OthoTimer.exe")
         res.raise_for_status()
 
