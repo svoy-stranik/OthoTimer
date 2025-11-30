@@ -16,6 +16,7 @@ from constants import (
     TASK_ITEM_HEIGHT,
 )
 from gui.todo_item_widget import TodoItemWidget
+from logger import logger
 
 
 class TodoListWidget(QWidget):
@@ -49,9 +50,12 @@ class TodoListWidget(QWidget):
 
     def _add_new_task(self) -> None:
         text = self.add_task_input.text().strip()
-        if text:
-            self._create_task_item(text)
-            self.add_task_input.clear()
+        if not text:
+            return
+
+        logger.debug("Adding new task: %s", text)
+        self._create_task_item(text)
+        self.add_task_input.clear()
 
     def _create_task_item(self, text: str) -> None:
         item = QListWidgetItem()

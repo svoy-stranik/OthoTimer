@@ -1,5 +1,7 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from logger import logger
+
 
 class TimerThread(QThread):
     timer_signal = pyqtSignal(int, str, bool)
@@ -20,6 +22,7 @@ class TimerThread(QThread):
             remaining -= 1
 
         if remaining <= 0 and self._is_running:
+            logger.debug("Emitting timer_finished signal")
             self.timer_finished.emit(self.is_break)
 
     def stop(self) -> None:
