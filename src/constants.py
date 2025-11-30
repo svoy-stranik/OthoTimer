@@ -2,19 +2,65 @@ import sys
 from os import getenv
 from pathlib import Path
 from platform import system
-from typing import Final
+from typing import Any, Final
 
 
+IS_STANDALONE: Final[bool] = hasattr(sys, "_MEIPASS")
 PROJECT_ROOT: Final[Path] = Path(getattr(sys, "_MEIPASS", ".")).resolve()
 ICON_PATH: Final[Path] = PROJECT_ROOT / "assets" / "icon.ico"
 PYPROJECT_TOML_PATH: Final[Path] = PROJECT_ROOT / "pyproject.toml"
 
-WORK_TIME = 25 * 60
-BREAK_TIME = 5 * 60
-VERSE_UPDATE_INTERVAL = 14400  # 4 часа
-PRAYER_REMINDER_INTERVAL = 90 * 60  # 1.5 часа
+WORK_TIME: Final[int] = 25 * 60
+BREAK_TIME: Final[int] = 5 * 60
+VERSE_UPDATE_INTERVAL: Final[int] = 14400  # 4 часа
+PRAYER_REMINDER_INTERVAL: Final[int] = 90 * 60  # 1.5 часа
 
-OTCHE_NASH = (
+COLOR_DARK_BG: Final[str] = "#2F2F2F"
+COLOR_DARKER_BG: Final[str] = "#404040"
+COLOR_DARKEST_BG: Final[str] = "#383838"
+COLOR_TEXT_LIGHT: Final[str] = "#E8E8E8"
+COLOR_TEXT_MUTED: Final[str] = "#A0A0A0"
+COLOR_ACCENT_BROWN: Final[str] = "#8B4513"
+COLOR_ACCENT_GOLD: Final[str] = "#D2B48C"
+COLOR_ACCENT_ORANGE: Final[str] = "#D2691E"
+COLOR_DELETE_RED: Final[str] = "#8B0000"
+COLOR_DELETE_HOVER: Final[str] = "#A52A2A"
+
+TASK_ITEM_HEIGHT: Final[int] = 45
+BUTTON_SMALL_SIZE: Final[tuple[int, int]] = (50, 22)
+BUTTON_TINY_SIZE: Final[tuple[int, int]] = (24, 24)
+
+TELEGRAM_URL: Final[str] = "https://t.me/periplanomenoc"
+REPOSITORY_RAW_FS: Final[str] = "https://raw.githubusercontent.com/svoy-stranik/OthoTimer/refs/heads/main"
+
+LOGGER_CONFIG: dict[str, Any] = {
+    "version": 1,
+    "disable_existing_loggers": True,
+    "formatters": {
+        "default": {
+            "format": "[%(asctime)s] <%(levelname)s> %(funcName)s: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        }
+    },
+    "handlers": {
+        "console": {
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+        },
+        "file": {
+            "formatter": "default",
+            "class": "logging.FileHandler",
+            "filename": "timer.log",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console", "file"],
+    },
+}
+
+OTCHE_NASH: Final[str] = (
     "Отче наш, Иже еси на небесе́х! "
     "Да святится имя Твое, да прии́дет Царствие Твое, "
     "да будет воля Твоя, яко на небеси́ и на земли́. "
@@ -24,7 +70,7 @@ OTCHE_NASH = (
     "Яко Твое есть Царство и сила, и слава во веки. Аминь."
 )
 
-BIBLE_VERSES = [
+BIBLE_VERSES: Final[list[str]] = [
     "Причти 1:7 — Начало мудрости – страх Господень; глупцы только презирают мудрость и наставление",
     "Притчи 3:5 — Надейся на Господа всем сердцем твоим, и не полагайся на разум твой",
     "Екклесиаст 11:9 — Веселись, юноша, пока ты молод; в дни юности пусть радует тебя твое сердце; ступай, куда влечет тебя сердце, куда глаза твои смотрят, но знай: за все это приведет тебя Бог на суд",
@@ -128,13 +174,19 @@ BIBLE_VERSES = [
     "прп. Исаак Сирин  — Движение языка и сердца в молитве суть ключи; а что после сего, то уже есть вход в сокровенные клети",
 ]
 
-if system() == "Windows":
-    appdata = getenv("APPDATA")
-    assert appdata, "Failed to find AppData"
-    APPDATA_DIR = Path(appdata) / "WorkTimerStrannik"
-else:
-    home_dir = Path("~").expanduser()
-    APPDATA_DIR = home_dir / ".WorkTimerStrannik"
+PLATFORM_SYSTEM: Final[str] = system()
 
-LAUNCH_FILE = APPDATA_DIR / "last_launch.txt"
+match PLATFORM_SYSTEM:
+    case "Windows":
+        appdata = getenv("APPDATA")
+        assert appdata, "Failed to find AppData"
+        APPDATA_DIR = Path(appdata) / "WorkTimerStrannik"
+    case "Linux":
+        home_dir = Path("~").expanduser()
+        APPDATA_DIR = home_dir / ".WorkTimerStrannik"
+    case _:
+        raise RuntimeError("Unknown Platform!")
+
+LAUNCH_FILE: Final[Path] = APPDATA_DIR / "last_launch.txt"
+USED_VERSES_FILE: Final[Path] = APPDATA_DIR / "used_verses.json"
 APPDATA_DIR.mkdir(parents=True, exist_ok=True)
