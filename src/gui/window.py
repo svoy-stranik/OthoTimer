@@ -134,8 +134,6 @@ class WorkTimerApp(QMainWindow):
         if not IS_STANDALONE:
             return
 
-        self.updater.cleanup()
-
         try:
             current_version = reveal_project_version()
             latest_version = self.updater.get_latest_version()
