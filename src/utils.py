@@ -1,12 +1,17 @@
 from functools import cache
-from tomllib import load
+from tomllib import loads
+
+from packaging.version import Version
 
 from constants import PYPROJECT_TOML_PATH
 
 
-@cache
-def reveal_project_version() -> str:
-    with PYPROJECT_TOML_PATH.open("rb") as f:
-        pyproject_toml = load(f)
+def get_version_from_pyproject_toml(raw_pyproject_toml: str) -> Version:
+    pyproject_toml = loads(raw_pyproject_toml)
 
-    return pyproject_toml["project"]["version"]
+    return Version(pyproject_toml["project"]["version"])
+
+
+@cache
+def reveal_project_version() -> Version:
+    return get_version_from_pyproject_toml(PYPROJECT_TOML_PATH.read_text(encoding="utf-8"))
