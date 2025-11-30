@@ -31,7 +31,7 @@ BUTTON_SMALL_SIZE = (50, 22)
 BUTTON_TINY_SIZE = (24, 24)
 
 TELEGRAM_URL = "https://t.me/periplanomenoc"
-REPOSITORY_RAW_FS = "https://raw.githubusercontent.com/svoy-stranik/OthoTimer/refs/heads/2.0"
+REPOSITORY_RAW_FS = "https://raw.githubusercontent.com/svoy-stranik/OthoTimer/refs/heads/restart"
 
 OTCHE_NASH = (
     "Отче наш, Иже еси на небесе́х! "
