@@ -7,7 +7,7 @@ from constants import LOGGER_CONFIG
 
 
 dictConfig(LOGGER_CONFIG)
-logger = getLogger("Otho Timer")
+logger = getLogger("Ortho Timer")
 
 
 def _exception_hook(*args):
