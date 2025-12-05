@@ -41,7 +41,7 @@ class Updater:
 
     def _download_executable(self):
         logger.debug("Downloading executable")
-        res = self.client.get("/dist/OthoTimer.exe")
+        res = self.client.get("/dist/OrthoTimer.exe")
         res.raise_for_status()
 
         with Path(self.new_executable_path).open("wb") as new_file:

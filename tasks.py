@@ -33,7 +33,7 @@ def build(_: Context):
     system(
         """
             uv run pyinstaller \
-                -Fwn OthoTimer \
+                -Fwn OrthoTimer \
                 --add-binary assets/icon.ico;assets \
                 --add-binary pyproject.toml;. \
                 -i assets/icon.ico \
@@ -42,5 +42,5 @@ def build(_: Context):
         """
     )
 
-    Path("OthoTimer.spec").unlink()
+    Path("OrthoTimer.spec").unlink()
     rmtree("build", ignore_errors=True)
